@@ -1,28 +1,43 @@
 from collections import UserDict
 from datetime import datetime, timedelta
 
+class Field:
+    def __init__(self, value=None):
+        self._value = None
+        self.value = value
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value
+
+
+class Name(Field):
+    pass
+
+
+class Phone(Field):
+    def __init__(self):
+        super().__init__()
+    
+    @Field.value.setter
+    def value(self, value):
+        if isinstance(value, str) and value.isdigit():
+            self._value = value
+        else:
+            print('The phone number must contain only digits.')
+
+
 class AddressBook(UserDict):
     def __iter__(self):
-        return AddressBookIterator(self.data)
+        return iter(self.data.values())
     
     def add_record(self, record):
-        self.data[record.name.get_value()] = record
+        self.data[record.name.value] = record
 
-class AddressBookIterator:
-    def __init__(self, data):
-        self.data = data
-        self.index = 0
-    
-    def __iter__(self):
-        return self
-    
-    def __next__(self):
-        if self.index >= len(self.data):
-            raise StopIteration
-        key = list(self.data.keys())[self.index]
-        record = self.data[key]
-        self.index += 1
-        return f"{key}: {record.phone.get_value()}"
 
 class Record:
     def __init__(self, name, birthday=None):
@@ -31,13 +46,15 @@ class Record:
         self.birthday = birthday
     
     def add_phone(self, phone):
-        self.phone.add_phone(phone)
+        self.phone.value = phone
     
     def remove_phone(self, phone):
-        self.phone.remove_phone(phone)
+        if self.phone.value == phone:
+            self.phone.value = None
     
     def edit_phone(self, old_phone, new_phone):
-        self.phone.edit_phone(old_phone, new_phone)
+        if self.phone.value == old_phone:
+            self.phone.value = new_phone
     
     def days_to_birthday(self):
         if self.birthday is None:
@@ -50,66 +67,13 @@ class Record:
             birthday_this_year = datetime(next_birthday_year, self.birthday.month, self.birthday.day).date()
         return (birthday_this_year - today).days
 
-class Field:
-    def __init__(self):
-        self.value = None
-    
-    def set_value(self, value):
-        self.validate(value)
-        self.value = value
-    
-    def get_value(self):
-        return self.value
-    
-    def validate(self, value):
-        pass
-
-class Name(Field):
-    def set_value(self, value):
-        if not value:
-            raise ValueError("Name field cannot be empty.")
-        super().set_value(value)
-
-class Phone(Field):
-    def __init__(self):
-        super().__init__()
-        self.value = []
-    
-    def add_phone(self, phone):
-        self.validate(phone)
-        self.value.append(phone)
-    
-    def remove_phone(self, phone):
-        if phone in self.value:
-            self.value.remove(phone)
-    
-    def edit_phone(self, old_phone, new_phone):
-        self.validate(new_phone)
-        if old_phone in self.value:
-            index = self.value.index(old_phone)
-            self.value[index] = new_phone
-    
-    def validate(self, phone):
-        if not isinstance(phone, str) or not phone.isdigit():
-            raise ValueError("Phone number should be a string of digits.")
-
-class Birthday(Field):
-    def set_value(self, value):
-        self.validate(value)
-        super().set_value(value)
-    
-    def validate(self, value):
-        if value is not None and not isinstance(value, datetime):
-            raise ValueError("Birthday should be a datetime object or None.")
 
 contacts = AddressBook()
 
 def add_contact(name, phone, birthday=None):
-    record = Record(Name(), Birthday())
-    record.name.set_value(name)
+    record = Record(Name(), birthday)
+    record.name.value = name
     record.add_phone(phone)
-    if birthday is not None:
-        record.birthday.set_value(birthday)
     contacts.add_record(record)
     return "Contact added successfully."
 
@@ -124,7 +88,7 @@ def change_phone(name, phone):
 def get_phone(name):
     if name in contacts.data:
         record = contacts.data[name]
-        return record.phone.get_value()
+        return record.phone.value
     else:
         raise KeyError("Contact not found.")
 
@@ -144,8 +108,8 @@ def display_contacts():
         return "No contacts found."
     else:
         output = ""
-        for contact in contacts:
-            output += contact + "\n"
+        for record in contacts:
+            output += f"{record.name.value}: {record.phone.value}\n"
         return output.strip()
 
 def main():
@@ -158,10 +122,16 @@ def main():
             print("How can I help you?")
         elif command.startswith("add"):
             try:
-                _, name, phone = command.split(" ")
-                print(add_contact(name, phone))
+                _, name, phone, *birthday = command.split(" ")
+                if birthday:
+                    birthday = datetime.strptime(" ".join(birthday), "%Y %m %d")
+                else:
+                    birthday = None
+                print(add_contact(name, phone, birthday))
             except ValueError:
                 print("Invalid input. Please enter name and phone number separated by a space.")
+            except TypeError:
+                print("Invalid birthday format. Please enter year, month, and day separated by spaces.")
         elif command.startswith("change"):
             try:
                 _, name, phone = command.split(" ")
